@@ -17,6 +17,16 @@ import transformers
 
 from . import data_list
 from .rope2d import get_rope_index_25, get_rope_index_2, get_rope_index_3
+from .bbox_utils import (
+    smart_resize_for_bbox,
+    parse_and_adjust_bbox_in_text,
+    get_image_dimensions,
+    should_adjust_coordinates as should_adjust_bbox,
+)
+from .point_utils import (
+    parse_and_adjust_point_in_text,
+    should_adjust_point_coordinates,
+)
 
 IGNORE_INDEX = -100
 IMAGE_TOKEN_INDEX = 151655
@@ -137,7 +147,26 @@ def update_processor_pixels(processor, data_args):
     return processor
 
 
-def _build_messages(item: Dict[str, Any], base_path: Path) -> List[Dict[str, Any]]:
+def _build_messages(
+    item: Dict[str, Any], 
+    base_path: Path,
+    processor=None,
+    data_args=None,
+    model_type: str = "qwen3vl"
+) -> List[Dict[str, Any]]:
+    """
+    Build messages with automatic coordinate adjustment for bbox_2d and point_2d.
+    
+    Args:
+        item: Data item with conversations
+        base_path: Base path for resolving relative paths
+        processor: The processor with image_processor settings (optional)
+        data_args: Data arguments with min/max_pixels (optional)
+        model_type: Type of model ("qwen2vl", "qwen2.5vl", "qwen3vl")
+    
+    Returns:
+        Messages list with adjusted coordinates if processor/data_args provided
+    """
     # Extract and normalize images and videos
     images = item.get("image") or []
     if isinstance(images, str):
@@ -147,13 +176,46 @@ def _build_messages(item: Dict[str, Any], base_path: Path) -> List[Dict[str, Any
     if isinstance(videos, str):
         videos = [videos]
 
+    # Build absolute paths
+    image_paths = [_make_abs_paths(base_path, img) for img in images]
+    video_paths = [_make_abs_paths(base_path, vid) for vid in videos]
+    
+    # Calculate resize info if processor provided
+    image_resize_info = []
+    if processor is not None and data_args is not None:
+        merge_size = getattr(processor.image_processor, "merge_size", 2)
+        image_patch_size = getattr(processor.image_processor, "patch_size", 14)
+        factor = image_patch_size * merge_size
+        
+        min_pixels = data_args.min_pixels
+        max_pixels = data_args.max_pixels
+        
+        for img_path in image_paths:
+            try:
+                width, height = get_image_dimensions(img_path)
+                resized_height, resized_width = smart_resize_for_bbox(
+                    height, width, factor, min_pixels, max_pixels
+                )
+                image_resize_info.append({
+                    "orig_width": width,
+                    "orig_height": height,
+                    "resized_width": resized_width,
+                    "resized_height": resized_height
+                })
+            except Exception as e:
+                rank0_print(f"Warning: Could not get dimensions for {img_path}: {e}")
+                image_resize_info.append(None)
+
     # Build media pools with absolute paths
     image_pool = [
-        {"type": "image", "image": _make_abs_paths(base_path, img)} for img in images
+        {"type": "image", "image": img_path} for img_path in image_paths
     ]
     video_pool = [
-        {"type": "video", "video": _make_abs_paths(base_path, vid)} for vid in videos
+        {"type": "video", "video": vid_path} for vid_path in video_paths
     ]
+    
+    # Track which image we're on for coordinate adjustment
+    current_image_idx = 0
 
     messages = []
     for turn in item["conversations"]:
@@ -172,6 +234,7 @@ def _build_messages(item: Dict[str, Any], base_path: Path) -> List[Dict[str, Any
                             "Number of <image> placeholders exceeds the number of provided images"
                         )
                     content.append(image_pool.pop(0))
+                    current_image_idx += 1
                 elif seg == "<video>":
                     if not video_pool:
                         raise ValueError(
@@ -184,6 +247,44 @@ def _build_messages(item: Dict[str, Any], base_path: Path) -> List[Dict[str, Any
             messages.append({"role": role, "content": content})
         else:
             # Assistant messages contain only text
+            # Adjust coordinates if we have resize info and this is after an image
+            if image_resize_info and current_image_idx > 0:
+                resize_info = image_resize_info[current_image_idx - 1]
+                
+                if resize_info is not None:
+                    # Determine if coordinates need adjustment based on model type
+                    is_relative = (model_type in ["qwen2vl", "qwen3vl"])
+                    
+                    # Adjust bbox_2d if present
+                    if should_adjust_bbox(turn):
+                        adjusted_text = parse_and_adjust_bbox_in_text(
+                            text,
+                            resize_info["orig_height"],
+                            resize_info["orig_width"],
+                            resize_info["resized_height"],
+                            resize_info["resized_width"],
+                            is_relative=is_relative,
+                            debug=False
+                        )
+                        if adjusted_text != text:
+                            rank0_print(f"[BBOX ADJUSTED] {text[:80]}... -> {adjusted_text[:80]}...")
+                        text = adjusted_text
+                    
+                    # Adjust point_2d if present
+                    if should_adjust_point_coordinates(turn):
+                        adjusted_text = parse_and_adjust_point_in_text(
+                            text,
+                            resize_info["orig_height"],
+                            resize_info["orig_width"],
+                            resize_info["resized_height"],
+                            resize_info["resized_width"],
+                            is_relative=is_relative,
+                            debug=False
+                        )
+                        if adjusted_text != text:
+                            rank0_print(f"[POINT ADJUSTED] {text[:80]}... -> {adjusted_text[:80]}...")
+                        text = adjusted_text
+            
             messages.append({"role": role, "content": [{"type": "text", "text": text}]})
 
     # Check for unused media files
@@ -202,13 +303,15 @@ def _build_messages(item: Dict[str, Any], base_path: Path) -> List[Dict[str, Any
 def preprocess_qwen_visual(
     sources,
     processor,
+    data_args=None,
+    model_type: str = "qwen3vl"
 ) -> Dict:
     if len(sources) != 1:
         raise ValueError(f"Expected 1 source, got {len(sources)}")
 
     source = sources[0]
     base_path = Path(source.get("data_path", ""))
-    messages = _build_messages(source, base_path)
+    messages = _build_messages(source, base_path, processor, data_args, model_type)
 
     full_result = processor.apply_chat_template(
         messages, tokenize=True, return_dict=True, return_tensors="pt"
@@ -391,6 +494,8 @@ class LazySupervisedDataset(Dataset):
         data_dict = preprocess_qwen_visual(
             sources,
             self.processor,
+            self.data_args,
+            self.model_type,
         )
 
         seq_len = data_dict["input_ids"][0].size(0)
