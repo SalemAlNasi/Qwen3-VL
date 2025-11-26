@@ -64,27 +64,20 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
         trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
 
 
-def set_model(model_args, model):
+def set_model(model_args, model): 
     if model_args.tune_mm_vision:
-        for n, p in model.visual.named_parameters():
+        for n, p in model.model.visual.named_parameters():
             p.requires_grad = True
     else:
-        for n, p in model.visual.named_parameters():
-            p.requires_grad = False
-
-    if model_args.tune_mm_mlp:
-        for n, p in model.visual.merger.named_parameters():
-            p.requires_grad = True
-    else:
-        for n, p in model.visual.merger.named_parameters():
+        for n, p in model.model.visual.named_parameters():
             p.requires_grad = False
 
     if model_args.tune_mm_llm:
-        for n, p in model.language_model.named_parameters():
+        for n, p in model.model.language_model.named_parameters():
             p.requires_grad = True
         model.lm_head.requires_grad = True
     else:
-        for n, p in model.language_model.named_parameters():
+        for n, p in model.model.language_model.named_parameters():
             p.requires_grad = False
         model.lm_head.requires_grad = False
 
@@ -180,8 +173,23 @@ def train(attn_implementation="flash_attention_2"):
         set_model(model_args, model)
 
         if torch.distributed.get_rank() == 0:
-            model.visual.print_trainable_parameters()
-            model.model.print_trainable_parameters()
+            is_qwen25_or_qwen3 = isinstance(model, (transformers.models.qwen2_5_vl.Qwen2_5_VLForConditionalGeneration,
+                                                     Qwen3VLForConditionalGeneration,
+                                                     Qwen3VLMoeForConditionalGeneration))
+            if is_qwen25_or_qwen3:
+                # Qwen2.5-VL and Qwen3-VL: print parameters manually
+                total_params = sum(p.numel() for p in model.parameters())
+                trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                print(f"Total parameters: {total_params:,}")
+                print(f"Trainable parameters: {trainable_params:,}")
+                if total_params > 0:
+                    print(f"Trainable %: {100 * trainable_params / total_params:.2f}%")
+                else:
+                    print("Trainable %: N/A (total_params is 0)")
+            else:
+                # Qwen2-VL only
+                model.visual.print_trainable_parameters()
+                model.model.print_trainable_parameters()
     
     data_module = make_supervised_data_module(processor, data_args=data_args)
     trainer = Trainer(
