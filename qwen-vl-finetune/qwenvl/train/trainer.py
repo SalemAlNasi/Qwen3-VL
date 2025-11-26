@@ -132,8 +132,15 @@ def qwen2vl_forward(
     value_states = value_states.view(bsz, q_len, -1, self.head_dim).transpose(1, 2)
 
     cos, sin = position_embeddings
+    # Qwen2.5-VL doesn't have rope_scaling attribute, use config instead
+    if hasattr(self, 'rope_scaling') and self.rope_scaling is not None:
+        mrope_section = self.rope_scaling["mrope_section"]
+    else:
+        # For Qwen2.5-VL, get from config
+        mrope_section = self.config.rope_scaling.get("mrope_section", None) if hasattr(self.config, 'rope_scaling') and self.config.rope_scaling else None
+    
     query_states, key_states = apply_multimodal_rotary_pos_emb(
-        query_states, key_states, cos, sin, self.rope_scaling["mrope_section"]
+        query_states, key_states, cos, sin, mrope_section
     )
 
     if past_key_values is not None:
