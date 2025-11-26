@@ -1,0 +1,54 @@
+# Qwen3-VL Pointing Task Training Configuration
+# Model: Qwen3-VL-8B with relative coordinates
+
+# Model configuration
+model_name_or_path: "Qwen/Qwen3-VL-8B-Instruct"
+
+# Training hyperparameters
+learning_rate: 5e-5
+per_device_train_batch_size: 16
+gradient_accumulation_steps: 2  
+num_train_epochs: 2.0
+
+# Seeds
+seed: 42
+data_seed: 42
+
+# Dataset configuration - Pointing with relative coordinates
+dataset_use: "epic100_relative,ego4d_relative,handal_relative"
+
+# Training configuration
+lora_enable: False
+data_flatten: True
+tune_mm_vision: True
+tune_mm_mlp: True
+tune_mm_llm: True
+bf16: True
+
+
+# Image preprocessing - for Qwen3-VL
+max_pixels: 50176
+min_pixels: 784
+
+# Evaluation and saving
+eval_strategy: "no"
+save_strategy: "steps"
+save_steps: 1000 
+save_total_limit: 2
+
+# Optimization
+weight_decay: 0
+warmup_ratio: 0.1 
+max_grad_norm: 1
+lr_scheduler_type: "cosine"
+logging_steps: 10
+
+# Model settings
+model_max_length: 8192
+gradient_checkpointing: True
+dataloader_num_workers: 16
+
+# Reporting
+report_to: "wandb"
+base_run_name: "Qwen3-Affordance-Pointing-8B"
+wandb_project: "qwen-affordance-training"
