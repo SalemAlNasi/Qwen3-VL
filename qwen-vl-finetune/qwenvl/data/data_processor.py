@@ -34,12 +34,16 @@ VIDEO_TOKEN_INDEX = 151656
 DEFAULT_IMAGE_TOKEN = "<image>"
 DEFAULT_VIDEO_TOKEN = "<video>"
 
-local_rank = None
-
-
 def rank0_print(*args):
-    if local_rank == 0:
-        print(*args)
+    """Print only on rank 0 when in distributed; otherwise print."""
+    try:
+        import torch.distributed as dist
+        if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
+            return
+    except Exception:
+        # If torch.distributed is not available/initialized, fall back to printing
+        pass
+    print(*args, flush=True)
 
 
 def read_jsonl(path):
@@ -266,8 +270,6 @@ def _build_messages(
                             is_relative=is_relative,
                             debug=False
                         )
-                        if adjusted_text != text:
-                            rank0_print(f"[BBOX ADJUSTED] {text[:80]}... -> {adjusted_text[:80]}...")
                         text = adjusted_text
                     
                     # Adjust point_2d if present
@@ -281,8 +283,6 @@ def _build_messages(
                             is_relative=is_relative,
                             debug=False
                         )
-                        if adjusted_text != text:
-                            rank0_print(f"[POINT ADJUSTED] {text[:80]}... -> {adjusted_text[:80]}...")
                         text = adjusted_text
             
             messages.append({"role": role, "content": [{"type": "text", "text": text}]})
