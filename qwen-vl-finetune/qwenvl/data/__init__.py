@@ -25,6 +25,50 @@ VIDEOCHATGPT = {
     "annotation_path": "PATH_TO_VIDEOCHATGPT_ANNOTATION",
     "data_path": "PATH_TO_VIDEOCHATGPT_DATA",
 }
+PixMo_Absolute = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/FalconVLMER_anno_versions/Affordance/PixMo_qwen_absolute.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/PixMo/pixmo-points/images/"
+}
+PixMo_Relative = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/FalconVLMER_anno_versions/Affordance/PixMo_qwen_relative.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/PixMo/pixmo-points/images/"
+}
+
+epic100_relative = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/epic100_train/epic100_train_relative.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+epic100_absolute = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/epic100_train/epic100_train_absolute.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+
+ego4d_relative = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/Ego4D_train/Ego4D_train_relative.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+ego4d_absolute = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/Ego4D_train/Ego4D_train_absolute.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+
+handal_relative = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/HANDAL_train/HANDAL_train_relative.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+handal_absolute = {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/HANDAL_train/HANDAL_train_absolute.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+oxe_relative =  {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/affordance_points/oxe_relative_train.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
+
+oxe_absolute =  {
+    "annotation_path": "/lustre1/tier2/projects/falcon-vla/vlm_data/affordance_points/oxe_absolute_train.qwen.json",
+    "data_path": "/lustre1/tier2/projects/falcon-vla/oxe_raw_images/"
+}
 
 data_dict = {
     "cambrian_737k": CAMBRIAN_737K,
@@ -32,6 +76,20 @@ data_dict = {
     "mp_doc": MP_DOC,
     "clevr_mc": CLEVR_MC,
     "videochatgpt": VIDEOCHATGPT,
+    # Aliases for clarity
+    "pixmo_pointing_absolute": PixMo_Absolute,
+    "pixmo_pointing_relative": PixMo_Relative,
+    # Backward-compatible key
+    "pixmo_absolute": PixMo_Absolute,
+    "epic100_relative": epic100_relative,
+    "epic100_absolute": epic100_absolute,
+    "ego4d_relative": ego4d_relative,
+    "ego4d_absolute": ego4d_absolute,
+    "handal_relative": handal_relative,
+    "handal_absolute": handal_absolute,
+    "oxe_relative": oxe_relative,
+    "oxe_absolute": oxe_absolute,
+
 }
 
 
